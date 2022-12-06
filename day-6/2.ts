@@ -11,6 +11,3 @@ for (let i = 0; i < arr.length; i++) {
     break;
   }
 }
-
-//Regex for 4 different characters in a row
-const regex = /([a-z])\1{3}/;
