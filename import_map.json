@@ -1,5 +1,6 @@
 {
   "imports": {
-    "lodash": "npm:lodash@4.17.15"
+    "lodash": "npm:lodash@4.17.15",
+    "mathjs": "npm:mathjs@11.5.0"
   }
 }

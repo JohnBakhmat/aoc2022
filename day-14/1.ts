@@ -96,7 +96,10 @@ const loop = () => {
     console.log('Iteration: ', iteration)
 
     //draw grid
-    console.log(grid.map((row) => row.join('')).join('\n'))
+    if (iteration % 1 == 0) {
+      console.clear()
+      console.log(grid.map((row) => row.join('')).join('\n'))
+    }
   }
   return 0
 }

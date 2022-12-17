@@ -98,8 +98,12 @@ const loop = () => {
 
     // console.log('Iteration: ', iteration)
 
-    //draw grid
-    // console.log(grid.map((row) => row.join('')).join('\n'))
+    // draw grid
+
+    if (iteration % 100 == 0) {
+      console.clear()
+      console.log(grid.map((row) => row.join('')).join('\n'))
+    }
     // console.table(grid)
   }
   return 0
