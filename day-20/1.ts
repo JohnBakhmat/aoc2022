@@ -5,7 +5,10 @@ const key = 811589153
 let array = text
   .split('\n')
   .map(Number)
-  .map((n) => n * key)
+  .map((n) => ({
+    moved: false,
+    value: n,
+  }))
 
 const swap = (i: number, j: number) => {
   const temp = array[i]
@@ -17,35 +20,40 @@ const getCircularIndex = (i: number) => {
   return ((i % array.length) + array.length) % array.length
 }
 
-const swapForward = (value: number) => {
-  const i = array.indexOf(value)
-
-  for (let j = 0; j < value; j++) {
+const swapForward = (value: { moved: boolean; value: number }) => {
+  const i = array.findIndex((v) => v.value === value.value && !v.moved)
+  if (i === -1) return
+  for (let j = 0; j < value.value; j++) {
     const a = getCircularIndex(i + j)
     const b = getCircularIndex(i + j + 1)
     swap(a, b)
+    array[i].moved = true
   }
 }
-const swapBackward = (value: number) => {
-  const i = array.indexOf(value)
-
-  for (let j = 0; j < Math.abs(value); j++) {
+const swapBackward = (value: { moved: boolean; value: number }) => {
+  const i = array.findIndex((v) => v.value === value.value && !v.moved)
+  if (i === -1) return
+  for (let j = 0; j < Math.abs(value.value); j++) {
     const a = getCircularIndex(i - j)
     const b = getCircularIndex(i - j - 1)
     swap(a, b)
+    array[i].moved = true
   }
 }
 const persistArray = [...array]
 
 persistArray.forEach((value, i) => {
-  if (value > 0) {
+  if (value.value > 0) {
     swapForward(value)
   } else {
     swapBackward(value)
   }
 })
 
-const zeroIndex = array.indexOf(0)
+const zeroIndex = array.indexOf({
+  moved: false,
+  value: 0,
+})
 
 const thousandth = array[getCircularIndex(zeroIndex + 1000)]
 const twoThousandth = array[getCircularIndex(zeroIndex + 2000)]
@@ -55,5 +63,5 @@ console.log(array, {
   thousandth,
   twoThousandth,
   threeThousandth,
-  sum: thousandth + twoThousandth + threeThousandth,
+  sum: thousandth.value + twoThousandth.value + threeThousandth.value,
 })
