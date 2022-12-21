@@ -36,12 +36,18 @@ const leftR = solveFor(left)
 const rightR = solveFor(right)
 // console.log(rightR)
 
-for (let i = 3247317268284; true; i++) {
-  console.log('HUMN: ', i.toLocaleString())
+for (let i = 3342154813000; true; i -= 1) {
   const l = leftR!.replaceAll('humn', i.toString())
   const r = rightR!.replaceAll('humn', i.toString())
 
-  if (eval(l) === eval(r)) {
+  const lRes = eval(l)
+  const rRes = eval(r)
+
+  const diff = Math.abs(lRes - rRes)
+
+  console.log('HUMN: ', i, 'DIFF: ', diff.toLocaleString())
+
+  if (eval(l) === rRes) {
     console.log({
       result: i,
     })
