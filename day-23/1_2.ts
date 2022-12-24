@@ -1,119 +1,183 @@
-export {}
+type ElfLayout = ('#' | '.')[][]
+type Elf = { pos: Coordinate; planned: Coordinate }
+type Coordinate = { y: number; x: number }
+const DIRECTIONS = ['N', 'S', 'W', 'E'] as const
 
-const text = await Deno.readTextFile('input.txt')
+/**
+ * while this is reasonably readable, it's the most shameful solution i've written
+ * all aoc in terms of performance. it's not even that slow, but it would be
+ * trivial to make it way faster. maybe i'll go back and do that, but probably not lol
+ */
 
-const directions = {
-  N: { x: 0, y: -1 },
-  E: { x: 1, y: 0 },
-  S: { x: 0, y: 1 },
-  W: { x: -1, y: 0 },
-  NE: { x: 1, y: -1 },
-  SE: { x: 1, y: 1 },
-  SW: { x: -1, y: 1 },
-  NW: { x: -1, y: -1 },
-}
-
-enum Tiles {
-  CLEAN = '.',
-  ELF = '#',
-}
-
-type Elf = {
-  y: number
-  x: number
-  facing: keyof typeof directions | null
-}
-
-const elves = new Set<Elf>()
-
-text.split('\n').forEach((line, i) => {
-  line.split('').forEach((char, j) => {
-    if (char === '#') {
-      elves.add({ y: i, x: j, facing: null })
-    }
-  })
-})
-
-const consider = (
-  elves: Set<Elf>,
-  elf: Elf,
-  facing: Array<keyof typeof directions>,
-) => {
-  return facing
-    .map(dir => {
-      const { x, y } = elf
-      const { x: dx, y: dy } = directions[dir]
-      const next = { x: x + dx, y: y + dy }
-      const nextElf = [...elves].find(e => e.x === next.x && e.y === next.y)
-      return nextElf === undefined
+function parseElfLayout(file: string) {
+  const board = Deno.readTextFileSync(file)
+    .split('\n')
+    .map(line => line.split('')) as ElfLayout
+  const elfs = [] as Elf[]
+  board.forEach((line, y) => {
+    line.forEach((char, x) => {
+      if (char === '#') {
+        elfs.push({ pos: { y, x }, planned: { y, x } })
+      }
     })
-    .every(v => v)
+  })
+  // console.log(elfs);
+  return elfs
 }
 
-const directionCircle: Array<Array<keyof typeof directions>> = [
-  ['N', 'NE', 'NW'],
-  ['S', 'SE', 'SW'],
-  ['W', 'NW', 'SW'],
-  ['E', 'NE', 'SE'],
-]
-
-const drawGrid = (elves: Set<Elf>, phase: string) => {
-  const arr = Array.from(elves)
-  const maxX = Math.max(...arr.map(e => e.x))
-  const maxY = Math.max(...arr.map(e => e.y))
-  const minX = Math.min(...arr.map(e => e.x))
-  const minY = Math.min(...arr.map(e => e.y))
-
-  const grid = new Array(maxY - minY + 1)
-    .fill(0)
-    .map(() => new Array(maxX - minX + 1).fill(Tiles.CLEAN))
-
-  for (const elf of elves) {
-    grid[elf.y - minY][elf.x - minX] =
-      phase === 'Consideration phase' ? elf.facing || Tiles.ELF : Tiles.ELF
+function takeTurns({ elves, moves }: { elves: Elf[]; moves: number }): Elf[] {
+  for (let i = 0; i < moves; i++) {
+    elves = planMoves({ elves, move: i })
+    elves = makeMoves(elves)
   }
-
-  console.log(`========${phase}=========`)
-  console.log(grid.map(line => line.join('')).join('\n'))
+  return elves
 }
 
-drawGrid(elves, 'Initial state')
+function takeTurnsCheckNoMove({ elves }: { elves: Elf[] }) {
+  for (let i = 0; i < Infinity; i++) {
+    console.log('turn', i + 1)
+    elves = planMoves({ elves, move: i })
+    if (
+      !elves.find(
+        elf => elf.pos.x !== elf.planned.x || elf.pos.y !== elf.planned.y,
+      )
+    ) {
+      console.log(JSON.stringify(elves))
+      console.log('empty', findEmpty(elves))
+      console.log('no move', i + 1)
 
-const roundLimit = 10
-for (let round = 0; round < roundLimit; round++) {
-  console.log(`\n\nRound ${round + 1}`)
-  //Consideration phase
-  for (const elf of elves) {
-    for (const dir of directionCircle) {
-      if (consider(elves, elf, dir)) {
-        elf.facing = dir[0]
-        break
-      } else {
-        elf.facing = null
+      return i + 1
+    }
+    elves = makeMoves(elves)
+  }
+  return -1
+}
+
+function planMoves({ elves, move }: { elves: Elf[]; move: number }): Elf[] {
+  return elves.map((elf, idx) => {
+    // if there is another elf within x/y +/- 1, set the planned coordinate to that elf's position
+    const otherElf = elves.find((elf2, idx2) => {
+      return (
+        idx !== idx2 &&
+        Math.abs(elf.pos.y - elf2.pos.y) <= 1 &&
+        Math.abs(elf.pos.x - elf2.pos.x) <= 1
+      )
+    })
+    if (!otherElf) {
+      return { ...elf, planned: elf.pos }
+    }
+
+    // otherwise, iterate over the directions offset by move, and do the first one that works
+    for (let i = 0 + move; i < DIRECTIONS.length + move; i++) {
+      const direction = DIRECTIONS[i % DIRECTIONS.length]
+
+      if (direction === 'N') {
+        // check if there are elves in N, NE, NW
+        const otherElf = elves.find((elf2, idx2) => {
+          return (
+            idx !== idx2 &&
+            elf.pos.y - 1 === elf2.pos.y &&
+            Math.abs(elf.pos.x - elf2.pos.x) <= 1
+          )
+        })
+        // if not, plan to go there
+        if (!otherElf) {
+          return { ...elf, planned: { y: elf.pos.y - 1, x: elf.pos.x } }
+        }
+      }
+      if (direction === 'S') {
+        // check if there are elves in S, SE, SW
+        const otherElf = elves.find((elf2, idx2) => {
+          return (
+            idx !== idx2 &&
+            elf.pos.y + 1 === elf2.pos.y &&
+            Math.abs(elf.pos.x - elf2.pos.x) <= 1
+          )
+        })
+        // if not, plan to go there
+        if (!otherElf) {
+          return { ...elf, planned: { y: elf.pos.y + 1, x: elf.pos.x } }
+        }
+      }
+      if (direction === 'W') {
+        // check if there are elves in W, NW, SW
+        const otherElf = elves.find((elf2, idx2) => {
+          return (
+            idx !== idx2 &&
+            elf.pos.x - 1 === elf2.pos.x &&
+            Math.abs(elf.pos.y - elf2.pos.y) <= 1
+          )
+        })
+        // if not, plan to go there
+        if (!otherElf) {
+          return { ...elf, planned: { y: elf.pos.y, x: elf.pos.x - 1 } }
+        }
+      }
+      if (direction === 'E') {
+        // check if there are elves in E, NE, SE
+        const otherElf = elves.find((elf2, idx2) => {
+          return (
+            idx !== idx2 &&
+            elf.pos.x + 1 === elf2.pos.x &&
+            Math.abs(elf.pos.y - elf2.pos.y) <= 1
+          )
+        })
+        // if not, plan to go there
+        if (!otherElf) {
+          return { ...elf, planned: { y: elf.pos.y, x: elf.pos.x + 1 } }
+        }
       }
     }
-  }
-  drawGrid(elves, 'Consideration phase')
-
-  //Movement phase
-
-  const movePlan = [...elves].map(elf => {
-    if (!elf.facing) return { elf, ...elf }
-
-    const { x, y } = elf
-    const { x: dx, y: dy } = directions[elf.facing]
-    return { elf, x: x + dx, y: y + dy }
+    // all positions blocked, remain in place
+    return { ...elf, planned: elf.pos }
   })
-
-  for (const { elf, x, y } of movePlan) {
-    const otherElf = [...movePlan].filter(e => e.x === x && e.y === y)
-    if (otherElf.length > 1) continue
-    elves.delete(elf)
-    elves.add({ ...elf, x, y })
-  }
-  drawGrid(elves, 'Movement phase')
-
-  // direction circle shift
-  const first = directionCircle.shift()
-  if (first) directionCircle.push(first)
 }
+
+function makeMoves(elves: Elf[]): Elf[] {
+  return elves.map((elf, idx) => {
+    const otherElf = elves.find((elf2, idx2) => {
+      return (
+        idx !== idx2 &&
+        elf.planned.y === elf2.planned.y &&
+        elf.planned.x === elf2.planned.x
+      )
+    })
+    if (!otherElf) {
+      return { ...elf, pos: elf.planned }
+    }
+    return elf
+  })
+}
+
+function findEmpty(elves: Elf[]) {
+  const xCoords = elves.map(elf => elf.pos.x)
+  const yCoords = elves.map(elf => elf.pos.y)
+  const minX = Math.min(...xCoords)
+  const minY = Math.min(...yCoords)
+  const maxX = Math.max(...xCoords)
+  const maxY = Math.max(...yCoords)
+  console.log(minX, maxX, minY, maxY)
+  return (maxX - minX + 1) * (maxY - minY + 1) - elves.length
+}
+
+export function solve23a(file: string) {
+  const elves = parseElfLayout(file)
+  const finalElves = takeTurns({ elves, moves: 10 })
+  const empty = findEmpty(finalElves)
+  return empty
+}
+
+export function solve23b(file: string) {
+  const elves = parseElfLayout(file)
+  const turnNum = takeTurnsCheckNoMove({ elves })
+  return turnNum
+}
+
+console.time('23a')
+console.log(solve23a('input.txt'))
+console.timeEnd('23a') // 2.2s
+console.time('23b')
+console.log(solve23b('input.txt'))
+console.timeEnd('23b') // // 2m30s
+
+export {}
